@@ -1,0 +1,9 @@
+First test:
+worker: 10min/20ccr - 24 views, 90% CPU. allFlags
+chrome: 10min/20ccr - 28 views, 70% CPU. allFlags
+chromeLauncher 10min/20ccr - 41 views, 90% CPU. allFlags
+
+Second test:
+chrome: 10min/20ccr - 32views, 85% CPU. allFlags
+chrome: 5min/20ccr - 22views, 80% CPU. noFlags
+chromeLauncher: 5min/20ccr - 25views, 90% CPU. noFlags

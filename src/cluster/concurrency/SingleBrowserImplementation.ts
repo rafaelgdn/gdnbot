@@ -1,7 +1,9 @@
 
 import * as puppeteer from 'puppeteer';
 import ConcurrencyImplementation, { ResourceData } from './ConcurrencyImplementation';
-
+import { launch, LaunchedChrome } from 'chrome-launcher'
+const request = require('request');
+const { promisify } = require('util');
 import { debugGenerator, timeoutExecute } from '../util';
 const debug = debugGenerator('SingleBrowserImpl');
 
@@ -9,7 +11,7 @@ const BROWSER_TIMEOUT = 5000;
 
 export default abstract class SingleBrowserImplementation extends ConcurrencyImplementation {
 
-    protected browser: puppeteer.Browser | null = null;
+    protected browser: puppeteer.Browser | LaunchedChrome | null = null;
 
     private repairing: boolean = false;
     private repairRequested: boolean = false;
@@ -23,7 +25,7 @@ export default abstract class SingleBrowserImplementation extends ConcurrencyImp
     private async repair() {
         if (this.openInstances !== 0 || this.repairing) {
             // already repairing or there are still pages open? wait for start/finish
-            await new Promise(resolve => this.waitingForRepairResolvers.push(resolve))
+            await new Promise((resolve) => this.waitingForRepairResolvers.push(resolve))
             return;
         }
 
@@ -32,13 +34,26 @@ export default abstract class SingleBrowserImplementation extends ConcurrencyImp
 
         try {
             // will probably fail, but just in case the repair was not necessary
-            await (<puppeteer.Browser>this.browser).close();
+          if(this.chromeLauncher) await (this.browser as LaunchedChrome).kill()
+          else await (this.browser as puppeteer.Browser).close();
         } catch (e) {
             debug('Unable to close browser.');
         }
 
         try {
-            this.browser = await this.puppeteer.launch(this.options) as puppeteer.Browser;
+            if (this.chromeLauncher) {
+                const chromeLib = await launch({
+                  chromeFlags: this.options.args,
+                  logLevel: 'silent',
+                });
+                  
+                const resp = await promisify(request)(`http://localhost:${chromeLib.port}/json/version`);
+                const { webSocketDebuggerUrl } = JSON.parse(resp.body);
+      
+                this.browser = await this.puppeteer.connect({ browserWSEndpoint: webSocketDebuggerUrl }) as puppeteer.Browser;  
+              } else {
+                this.browser = await this.puppeteer.launch(this.options) as puppeteer.Browser;
+              }
         } catch (err) {
             throw new Error('Unable to restart chrome.');
         }
@@ -49,11 +64,24 @@ export default abstract class SingleBrowserImplementation extends ConcurrencyImp
     }
 
     public async init() {
-        this.browser = await this.puppeteer.launch(this.options);
+        if (this.chromeLauncher) {
+            const chromeLib = await launch({
+              chromeFlags: this.options.args,
+              logLevel: 'silent',
+            });
+              
+            const resp = await promisify(request)(`http://localhost:${chromeLib.port}/json/version`);
+            const { webSocketDebuggerUrl } = JSON.parse(resp.body);
+  
+            this.browser = await this.puppeteer.connect({ browserWSEndpoint: webSocketDebuggerUrl }) as puppeteer.Browser;  
+          } else {
+            this.browser = await this.puppeteer.launch(this.options) as puppeteer.Browser;
+          }
     }
 
     public async close() {
-        await (this.browser as puppeteer.Browser).close();
+        if(this.chromeLauncher) await (this.browser as LaunchedChrome).kill()
+        else await (this.browser as puppeteer.Browser).close();
     }
 
     protected abstract async createResources(): Promise<ResourceData>;

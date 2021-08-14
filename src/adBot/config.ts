@@ -1,8 +1,9 @@
 export default {
-    concurrency: 1,
+    headless: true,
+    concurrencyLimit: 50,
     totalAmount: 20,
     CPM: 3.5,
     urls: [
-      "https://www.twitch.tv/faah"
+      "https://www.twitch.tv/dgzaofps"
     ]
   }
